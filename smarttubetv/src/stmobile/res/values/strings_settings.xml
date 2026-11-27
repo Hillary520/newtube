@@ -202,6 +202,8 @@
     <string name="mobile_settings_quality_mobile">Default quality on mobile data</string>
     <string name="mobile_settings_quality_same_as_wifi">Same as Wi-Fi</string>
     <string name="mobile_settings_quality_summary_split">Wi-Fi: %1$s · Mobile: %2$s</string>
+    <string name="mobile_settings_overlay_quality">Quality button on player</string>
+    <string name="mobile_settings_overlay_quality_summary">Show the current resolution next to fullscreen for quick switching</string>
     <string name="mobile_settings_quality_auto">Auto (up to %1$dp)</string>
     <string name="mobile_settings_quality_auto_desc">Recommended. The best your connection allows</string>
     <string name="mobile_settings_quality_up_to">Up to %1$s</string>
