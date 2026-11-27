@@ -29,6 +29,7 @@ import com.liskovsoft.smartyoutubetv2.common.utils.AppDialogUtil;
 import com.liskovsoft.smartyoutubetv2.common.utils.Utils;
 import com.liskovsoft.smartyoutubetv2.tv.R;
 import com.liskovsoft.youtubeapi.service.internal.MediaServiceData;
+import com.newtube.mobile.player.NetworkQualityPrefs;
 import com.newtube.mobile.player.SabrSourcePreference;
 import com.newtube.mobile.ui.playback.PlayerGesturePrefs;
 import com.newtube.mobile.ui.playback.WatchLayoutPrefs;
@@ -256,6 +257,7 @@ final class PlayerPages {
 
         rows.add(SettingsRow.note(context.getString(R.string.mobile_settings_quality_fixed_intro)));
         rows.add(defaultQuality(context));
+        rows.add(mobileDataQuality(context));
 
         rows.add(SettingsRow.header(context.getString(R.string.mobile_settings_audio)));
         rows.add(SettingsRow.toggle(context.getString(R.string.mobile_settings_loudness),
@@ -268,11 +270,19 @@ final class PlayerPages {
         return new SettingsPages.Page(context.getString(R.string.mobile_settings_quality), rows);
     }
 
-    /** Auto or the saved resolution, for the Video quality row on the top level. */
+    /** Auto or the saved resolution (or split Wi-Fi/Mobile), for the Video quality row on the top level. */
     static CharSequence qualitySummary(Context context) {
-        SettingsRow row = defaultQuality(context);
-        CharSequence text = row.summaryText();
-        return text != null ? text : "";
+        SettingsRow wifiRow = defaultQuality(context);
+        CharSequence wifiText = wifiRow.summaryText();
+        String wifi = wifiText != null ? wifiText.toString() : "";
+        if (!NetworkQualityPrefs.hasMobileOverride(context)) {
+            return wifi;
+        }
+        CharSequence mobileText = mobileDataQuality(context).summaryText();
+        if (mobileText == null || mobileText.length() == 0) {
+            return wifi;
+        }
+        return context.getString(R.string.mobile_settings_quality_summary_split, wifi, mobileText);
     }
 
     private static final String QUALITY_AUTO = "auto";
@@ -289,15 +299,9 @@ final class PlayerPages {
         FormatItem auto = playerData.getDefaultVideoFormat();
         int autoHeight = auto != null && auto.getHeight() > 0 ? auto.getHeight() : 1080;
 
-        List<VideoPreset> presets = new ArrayList<>();
-        for (int height : new int[] {2160, 1440, 1080, 720, 480, 360}) {
-            VideoPreset preset = bestPreset(height);
-            if (preset != null) {
-                presets.add(preset);
-            }
-        }
+        List<VideoPreset> presets = qualityPresets();
 
-        SettingsRow.Choice<String> choice = SettingsRow.choice(context.getString(R.string.mobile_settings_default_quality));
+        SettingsRow.Choice<String> choice = SettingsRow.choice(context.getString(R.string.mobile_settings_quality_wifi));
         choice.option(context.getString(R.string.mobile_settings_quality_auto, autoHeight),
                 context.getString(R.string.mobile_settings_quality_auto_desc), QUALITY_AUTO);
         String currentKey = current == null || (!current.isPreset() && current.getFormatId() == null)
@@ -330,6 +334,40 @@ final class PlayerPages {
                 }
             }
         });
+    }
+
+    /** NEWTUBE(issue #130): optional fixed resolution override for mobile data ("Same as Wi-Fi", Auto, or fixed resolution). */
+    private static SettingsRow mobileDataQuality(Context context) {
+        PlayerData playerData = PlayerData.instance(context);
+        FormatItem auto = playerData.getDefaultVideoFormat();
+        int autoHeight = auto != null && auto.getHeight() > 0 ? auto.getHeight() : 1080;
+        List<VideoPreset> presets = qualityPresets();
+
+        SettingsRow.Choice<String> choice = SettingsRow.choice(context.getString(R.string.mobile_settings_quality_mobile));
+        choice.option(context.getString(R.string.mobile_settings_quality_same_as_wifi), NetworkQualityPrefs.QUALITY_SAME_AS_WIFI);
+        choice.option(context.getString(R.string.mobile_settings_quality_auto, autoHeight),
+                context.getString(R.string.mobile_settings_quality_auto_desc), NetworkQualityPrefs.QUALITY_AUTO);
+        for (VideoPreset preset : presets) {
+            int height = preset.getHeight();
+            String description = height >= autoHeight ? context.getString(R.string.mobile_settings_quality_more_data)
+                    : height <= 480 ? context.getString(R.string.mobile_settings_quality_data_saver)
+                    : context.getString(R.string.mobile_settings_quality_less_data);
+            choice.option(resolutionName(height), description, preset.name);
+        }
+        return choice.bind(
+                () -> NetworkQualityPrefs.getMobileQualityKey(context),
+                key -> NetworkQualityPrefs.setMobileQualityKey(context, key));
+    }
+
+    private static List<VideoPreset> qualityPresets() {
+        List<VideoPreset> presets = new ArrayList<>();
+        for (int height : new int[] {2160, 1440, 1080, 720, 480, 360}) {
+            VideoPreset preset = bestPreset(height);
+            if (preset != null) {
+                presets.add(preset);
+            }
+        }
+        return presets;
     }
 
     /** Same as the TV presets list: a pick also clears "Force legacy codecs". */

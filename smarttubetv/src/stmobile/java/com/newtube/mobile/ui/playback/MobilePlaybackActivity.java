@@ -113,6 +113,8 @@ import com.newtube.mobile.player.Media3DebugInfoManager;
 import com.newtube.mobile.player.Media3PlayerController;
 import com.newtube.mobile.player.Media3PlayerInitializer;
 import com.newtube.mobile.player.Media3SubtitleManager;
+import com.newtube.mobile.player.MeteredNetworkMonitor;
+import com.newtube.mobile.player.NetworkQualityPrefs;
 import com.liskovsoft.smartyoutubetv2.common.prefs.GeneralData;
 import com.liskovsoft.smartyoutubetv2.common.prefs.MainUIData;
 import com.liskovsoft.smartyoutubetv2.common.prefs.PlayerData;
@@ -431,6 +433,7 @@ public class MobilePlaybackActivity extends MobileActivity
     private long mLastHandBackMs;
     private int mLastHandBackOrientation = Configuration.ORIENTATION_UNDEFINED;
     private static final long HAND_BACK_SNAP_GUARD_MS = 1000;
+    private final Runnable mCellularNetworkListener = () -> runOnUiThread(this::onNetworkTransportChanged);
     /** True while in true background audio-only playback (video renderer dropped); see setBackgroundAudioMode. */
     private boolean mBackgroundAudioMode;
 
@@ -526,6 +529,8 @@ public class MobilePlaybackActivity extends MobileActivity
 
         registerPipReceiver();
         registerAutoRotateObserver();
+        MeteredNetworkMonitor.start(this);
+        MeteredNetworkMonitor.addCellularListener(mCellularNetworkListener);
 
         // Casting: observe the (process-wide) session so the "Playing on TV" panel follows
         // whatever session connects/updates/ends while this player is open. A session that
@@ -1750,6 +1755,7 @@ public class MobilePlaybackActivity extends MobileActivity
         MobileSheets.setPlayerShown(false, false);
         cancelAutoHide();
         unregisterAutoRotateObserver();
+        MeteredNetworkMonitor.removeCellularListener(mCellularNetworkListener);
         mOrientationHandBack.disarm();
         updateOrientationHandBackListener();
         hideRelatedSkeleton(); // cancels the pulse animator + pending timeout
@@ -4127,6 +4133,18 @@ public class MobilePlaybackActivity extends MobileActivity
         mAutoRotateObserver = null;
     }
 
+    private void onNetworkTransportChanged() {
+        if (isFinishing() || isDestroyed() || mExoPlayerController == null) {
+            return;
+        }
+        PlayerData playerData = PlayerData.instance(this);
+        if (playerData.getTempVideoFormat() != null || !NetworkQualityPrefs.hasMobileOverride(this)) {
+            return;
+        }
+        mExoPlayerController.selectFormat(NetworkQualityPrefs.resolveVideoFormat(
+                this, playerData, MeteredNetworkMonitor.isCellular()));
+    }
+
     private boolean isAutoRotateOn() {
         return android.provider.Settings.System.getInt(getContentResolver(),
                 android.provider.Settings.System.ACCELEROMETER_ROTATION, 0) == 1;
@@ -4325,7 +4343,8 @@ public class MobilePlaybackActivity extends MobileActivity
     private String currentQualityLabel() {
         PlayerData playerData = PlayerData.instance(this);
         FormatItem tempOverride = playerData.getTempVideoFormat();
-        FormatItem chosen = tempOverride != null ? tempOverride : playerData.getFormat(FormatItem.TYPE_VIDEO);
+        FormatItem chosen = tempOverride != null ? tempOverride
+                : NetworkQualityPrefs.resolveVideoFormat(this, playerData, MeteredNetworkMonitor.isCellular());
 
         androidx.media3.common.Format playing = mPlayer != null ? mPlayer.getVideoFormat() : null;
         if (!isAutoFormat(chosen) && chosen.getHeight() > 0) {
@@ -7384,7 +7403,8 @@ public class MobilePlaybackActivity extends MobileActivity
         // sheet would keep check-marking Auto right after the user picked a rung.
         PlayerData playerData = PlayerData.instance(this);
         FormatItem tempOverride = playerData.getTempVideoFormat();
-        FormatItem persisted = tempOverride != null ? tempOverride : playerData.getFormat(FormatItem.TYPE_VIDEO);
+        FormatItem persisted = tempOverride != null ? tempOverride
+                : NetworkQualityPrefs.resolveVideoFormat(this, playerData, MeteredNetworkMonitor.isCellular());
         boolean autoActive = isAutoFormat(persisted);
 
         // Rung -> representative track. Formats arrive quality-descending; the first of each rung
@@ -9049,6 +9069,14 @@ public class MobilePlaybackActivity extends MobileActivity
 
     @Override
     public void setFormat(FormatItem option) {
+        if (option != null && option.getType() == FormatItem.TYPE_VIDEO) {
+            PlayerData playerData = PlayerData.instance(this);
+            if (playerData.getTempVideoFormat() == null
+                    && option.equals(playerData.getFormat(FormatItem.TYPE_VIDEO))) {
+                option = NetworkQualityPrefs.resolveVideoFormat(
+                        this, playerData, MeteredNetworkMonitor.isCellular());
+            }
+        }
         mExoPlayerController.selectFormat(option);
     }
 
