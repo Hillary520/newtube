@@ -424,4 +424,5 @@
     <string name="sabr_vod_option">Preferir SABR aunque haya enlaces (experimental; próximo vídeo)</string>
     <string name="sabr_vod_stopped">Se ha detenido la reproducción SABR experimental. Pulsa reproducir para reintentar o desactiva SABR en Ajustes.</string>
     <string name="mobile_settings_quality_fixed_intro">Automática se adapta a tu conexión. La resolución elegida se mantiene cuando está disponible; si no, se usa la mejor resolución inferior. Puedes cambiarla para un vídeo desde los ajustes del reproductor.</string>
+    <string name="mobile_player_sponsor_skip">Saltar %1$s</string>
 </resources>
