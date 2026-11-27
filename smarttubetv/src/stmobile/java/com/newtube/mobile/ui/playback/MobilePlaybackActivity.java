@@ -1032,6 +1032,7 @@ public class MobilePlaybackActivity extends MobileActivity
         long touchPrefetchMs = com.newtube.mobile.player.SwitchExperiments.touchPrefetchStillMs();
         mRelatedAdapter = new RelatedVideoAdapter(this::onRelatedClicked,
                 touchPrefetchMs > 0 ? this::onRelatedPressed : null, touchPrefetchMs);
+        mRelatedAdapter.setFullCards(WatchLayoutPrefs.isRelatedFullCards(this));
         mWatchRelated.setLayoutManager(new LinearLayoutManager(this));
         mWatchRelated.setNestedScrollingEnabled(false);
         mWatchRelated.setHasFixedSize(false);
@@ -1625,6 +1626,9 @@ public class MobilePlaybackActivity extends MobileActivity
             }
         }
         updateOrientationHandBackListener();
+        if (mRelatedAdapter != null) {
+            mRelatedAdapter.setFullCards(WatchLayoutPrefs.isRelatedFullCards(this));
+        }
     }
 
     private void clearBackdropForMorphStart() {
